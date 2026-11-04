@@ -9,13 +9,14 @@ PostgreSQL), a nie kod aplikacji.
 
 ## Status
 
-Projekt jest na wczesnym etapie. Działa szkielet aplikacji, baza danych oraz model
-budynku (piętra i sale). Rezerwacje są następnym krokiem.
+Projekt jest na wczesnym etapie. Działa szkielet aplikacji, baza danych, model budynku
+(piętra i sale) oraz model rezerwacji z ograniczeniem przeciw nakładaniu się terminów.
+Brakuje jeszcze testów automatycznych i API.
 
 - [x] Szkielet Django + Django REST Framework
 - [x] PostgreSQL uruchamiany w Dockerze, Django skonfigurowane do pracy z nim
 - [x] Model budynku: piętra i sale (ograniczenia unikalności i pojemności w bazie), panel admina
-- [ ] Model rezerwacji (`ExclusionConstraint` + `btree_gist`)
+- [x] Model rezerwacji z `ExclusionConstraint` + `btree_gist`, panel admina z wyborem daty i godziny
 - [ ] Testy (pytest), w tym test współbieżności
 - [ ] API REST: sale, wyszukiwarka dostępności, rezerwacje
 - [ ] JWT i role użytkowników
@@ -41,16 +42,24 @@ budynku (piętra i sale). Rezerwacje są następnym krokiem.
 Zakaz nakładania się rezerwacji tej samej sali realizuję przez `ExclusionConstraint`
 (typ zakresu czasu + operator nakładania), który istnieje tylko w PostgreSQL.
 Dzięki temu poprawność nie zależy od tego, że kod aplikacji "zdąży sprawdzić"
-przed zapisem.
+przed zapisem. Walidacja w Django daje czytelny komunikat, a gwarancję zapewnia baza.
 
 ## Model danych (stan obecny)
 
 - `Floor` — piętro (unikalny numer, opcjonalna nazwa).
 - `Room` — sala przypisana do piętra: pojemność, wyposażenie (projektor, tablica,
   wideokonferencja), flaga aktywności.
+- `Booking` — rezerwacja sali: organizator, tytuł, przedział czasu (`tstzrange`),
+  liczba uczestników, status (oczekująca, potwierdzona, anulowana, zakończona, nieodebrana).
 
 Reguły egzekwowane przez bazę: unikalny numer piętra, unikalna nazwa sali w obrębie
-piętra, pojemność większa od zera, zakaz usunięcia piętra z salami.
+piętra, pojemność większa od zera, liczba uczestników większa od zera, zakaz usunięcia
+piętra z salami i sali z rezerwacjami, **brak nakładających się aktywnych rezerwacji tej
+samej sali** (przedziały półotwarte: rezerwacje stykające się o pełnej godzinie nie kolidują;
+anulowane rezerwacje nie blokują sali).
+
+**Świadome uproszczenia:** model zakłada jeden budynek (hierarchia piętro → sala),
+jedna rezerwacja dotyczy jednej sali, a bufor po spotkaniu i sale łączone dojdą w kolejnych etapach.
 
 ## Uruchomienie lokalne (Windows, PowerShell)
 
@@ -88,18 +97,17 @@ roombook/
 │   ├── ruff.toml          # konfiguracja lintera
 │   ├── config/            # ustawienia projektu Django
 │   ├── buildings/         # piętra i sale (modele, migracje, admin)
-│   └── bookings/          # rezerwacje (w przygotowaniu)
+│   └── bookings/          # rezerwacje (model, migracje, admin)
 ├── README.md
 └── CHANGELOG.md
 ```
 
 ## Plan prac
 
-1. Model rezerwacji z rozszerzeniem `btree_gist` i ograniczeniem wykluczającym
-2. Testy rdzenia: nakładanie rezerwacji, rezerwacje kolejne, anulowane nie blokują, współbieżność
-3. API sal i wyszukiwarka dostępności
-4. Rezerwacje przez API (idempotentność, kod 409 przy konflikcie)
-5. JWT, role, CI
-6. Celery, symulator urządzeń, wdrożenie
+1. Testy rdzenia: nakładanie rezerwacji, rezerwacje kolejne, anulowane nie blokują, współbieżność
+2. API sal i wyszukiwarka dostępności
+3. Rezerwacje przez API (idempotentność, kod 409 przy konflikcie)
+4. JWT, role, CI
+5. Celery, symulator urządzeń, wdrożenie
 
 Zmiany: zob. [CHANGELOG.md](CHANGELOG.md).
