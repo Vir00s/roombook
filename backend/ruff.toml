@@ -1,2 +1,4 @@
 [lint]
+# RUF012 flags mutable class attributes, which is a false positive for
+# Django's `class Meta` options (ordering, constraints, list_display, ...).
 ignore = ["RUF012"]

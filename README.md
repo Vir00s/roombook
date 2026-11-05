@@ -9,16 +9,16 @@ PostgreSQL), a nie kod aplikacji.
 
 ## Status
 
-Projekt jest na wczesnym etapie. Działa szkielet aplikacji, baza danych, model budynku
-(piętra i sale) oraz model rezerwacji z ograniczeniem przeciw nakładaniu się terminów.
-Brakuje jeszcze testów automatycznych i API.
+Projekt jest na wczesnym etapie. Działa szkielet aplikacji, baza danych, model budynku,
+model rezerwacji z ograniczeniem przeciw nakładaniu się terminów oraz testy automatyczne
+(w tym test równoległych zapisów). Brakuje jeszcze API i CI.
 
 - [x] Szkielet Django + Django REST Framework
 - [x] PostgreSQL uruchamiany w Dockerze, Django skonfigurowane do pracy z nim
 - [x] Model budynku: piętra i sale (ograniczenia unikalności i pojemności w bazie), panel admina
 - [x] Model rezerwacji z `ExclusionConstraint` + `btree_gist`, panel admina z wyborem daty i godziny
-- [ ] Testy (pytest), w tym test współbieżności
-- [ ] API REST: sale, wyszukiwarka dostępności, rezerwacje
+- [x] Testy (pytest): reguły ograniczeń oraz test współbieżności
+- [ ] API REST: sale, wyszukiwarka dostępności, rezerwacje (z obsługą konfliktów)
 - [ ] JWT i role użytkowników
 - [ ] Docker Compose dla całej aplikacji
 - [ ] CI (GitHub Actions)
@@ -34,6 +34,7 @@ Brakuje jeszcze testów automatycznych i API.
 | Framework | Django 6.1, Django REST Framework 3.18 |
 | Baza danych | PostgreSQL 18 (Docker) |
 | Sterownik bazy | psycopg 3 |
+| Testy | pytest, pytest-django |
 | Linter i formater | Ruff |
 | Środowisko | Docker Compose, venv |
 
@@ -60,6 +61,32 @@ anulowane rezerwacje nie blokują sali).
 
 **Świadome uproszczenia:** model zakłada jeden budynek (hierarchia piętro → sala),
 jedna rezerwacja dotyczy jednej sali, a bufor po spotkaniu i sale łączone dojdą w kolejnych etapach.
+
+## Testy
+
+Testy działają na prawdziwym PostgreSQL (ograniczenie wykluczające nie istnieje w SQLite);
+pytest-django tworzy osobną bazę testową, więc dane deweloperskie nie są ruszane.
+
+- reguły ograniczeń: pięć układów nakładania się, styk terminów, inna sala, nieaktywne statusy, uczestnicy;
+- współbieżność: osiem wątków próbuje jednocześnie zarezerwować ten sam termin
+  i dokładnie jeden się udaje.
+
+```powershell
+pip install -r backend/requirements-dev.txt
+cd backend
+pytest
+```
+
+## Decyzje i kompromisy
+
+**Co poszło nie tak i jak to wyszło na jaw.** Zakładałem, że przy równoległych zapisach
+każda przegrana próba dostanie zwykły błąd naruszenia ograniczenia. Test współbieżności
+pokazał, że przy większej liczbie jednoczesnych zapisów PostgreSQL potrafi też przerwać
+jedną z transakcji błędem `deadlock detected` (kod `40P01`): sesje czekają na swoje
+niezatwierdzone wiersze podczas sprawdzania ograniczenia wykluczającego. Dane pozostają
+spójne (nigdy nie powstaje podwójna rezerwacja), ale API musi obsłużyć oba błędy
+(`23P01` i `40P01`) i zwracać klientowi czytelny konflikt. Planuję blokadę wiersza sali
+w transakcji rezerwacji (kolejkowanie zapisów) oraz obsługę obu kodów jako zabezpieczenie.
 
 ## Uruchomienie lokalne (Windows, PowerShell)
 
@@ -93,21 +120,23 @@ roombook/
 ├── docker-compose.yml     # PostgreSQL
 ├── backend/
 │   ├── manage.py
-│   ├── requirements.txt
-│   ├── ruff.toml          # konfiguracja lintera
-│   ├── config/            # ustawienia projektu Django
-│   ├── buildings/         # piętra i sale (modele, migracje, admin)
-│   └── bookings/          # rezerwacje (model, migracje, admin)
+│   ├── requirements.txt       # zależności aplikacji
+│   ├── requirements-dev.txt   # testy i narzędzia deweloperskie
+│   ├── pytest.ini
+│   ├── ruff.toml              # konfiguracja lintera
+│   ├── config/                # ustawienia projektu Django
+│   ├── buildings/             # piętra i sale (modele, migracje, admin)
+│   ├── bookings/              # rezerwacje (model, migracje, admin)
+│   └── tests/                 # testy ograniczeń i współbieżności
 ├── README.md
 └── CHANGELOG.md
 ```
 
 ## Plan prac
 
-1. Testy rdzenia: nakładanie rezerwacji, rezerwacje kolejne, anulowane nie blokują, współbieżność
-2. API sal i wyszukiwarka dostępności
-3. Rezerwacje przez API (idempotentność, kod 409 przy konflikcie)
-4. JWT, role, CI
-5. Celery, symulator urządzeń, wdrożenie
+1. API sal i wyszukiwarka dostępności
+2. Rezerwacje przez API (blokada wiersza sali, idempotentność, kod 409 przy konflikcie)
+3. JWT, role, CI (GitHub Actions z kontenerem PostgreSQL)
+4. Celery, symulator urządzeń, wdrożenie
 
 Zmiany: zob. [CHANGELOG.md](CHANGELOG.md).

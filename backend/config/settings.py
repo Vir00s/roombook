@@ -38,8 +38,10 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    # PostgreSQL-specific fields and constraints (range fields, exclusion).
     "django.contrib.postgres",
     "rest_framework",
+    # Project apps.
     "buildings",
     "bookings",
 ]
@@ -77,6 +79,9 @@ WSGI_APPLICATION = "config.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/6.1/ref/settings/#databases
 
+# PostgreSQL only: the booking exclusion constraint does not exist in SQLite.
+# Every value can be overridden by an environment variable; the defaults match
+# docker-compose.yml and are meant for local development only.
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
@@ -113,6 +118,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = "pl"
 
+# Timestamps are stored in UTC (USE_TZ) and displayed in this time zone.
 TIME_ZONE = "Europe/Warsaw"
 
 USE_I18N = True

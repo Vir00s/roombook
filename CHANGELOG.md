@@ -2,6 +2,22 @@
 
 Format wzorowany na [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-11-05
+
+### Added
+- Testy pytest na prawdziwym PostgreSQL: reguły ograniczeń rezerwacji (nakładanie się,
+  styk terminów, inna sala, nieaktywne statusy, uczestnicy) oraz test współbieżności
+  (osiem wątków, wygrywa dokładnie jedna rezerwacja).
+- `requirements-dev.txt` (pytest, pytest-django, ruff) i `pytest.ini`.
+- Komentarze w języku angielskim w modelach, panelu admina, testach i konfiguracji.
+
+### Changed
+- Test współbieżności akceptuje oba kody odrzucenia z PostgreSQL: naruszenie ograniczenia
+  wykluczającego (`23P01`) i deadlock (`40P01`).
+
+### Removed
+- Puste szablony `tests.py` w aplikacjach `buildings` i `bookings`.
+
 ## 2026-11-04
 
 ### Added
